@@ -1,4 +1,3 @@
-<!-- index.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -7,62 +6,72 @@
   <title>ChatGPT Vision Demo</title>
   <style>
     body { font-family: sans-serif; padding: 20px; max-width: 500px; margin: auto; }
-    input, button { margin: 10px 0; width: 100%; }
+    input, button, textarea { margin: 10px 0; width: 100%; }
     #response { white-space: pre-wrap; background: #f3f3f3; padding: 10px; border-radius: 5px; }
   </style>
 </head>
 <body>
   <h2>ChatGPT Vision</h2>
   <input type="file" id="image" accept="image/*" />
-  <textarea id="prompt" placeholder="Ask something about the image..." rows="4"></textarea>
+  <textarea id="prompt" placeholder="Ask something (optional)..." rows="4"></textarea>
   <button onclick="sendToOpenAI()">Submit</button>
   <div id="response"></div>
 
   <script>
     async function sendToOpenAI() {
       const file = document.getElementById("image").files[0];
-      const prompt = document.getElementById("prompt").value;
+      let prompt = document.getElementById("prompt").value.trim();
       const responseDiv = document.getElementById("response");
 
-      if (!file || !prompt) {
-        responseDiv.textContent = "Please provide both an image and a prompt.";
+      if (!file && !prompt) {
+        responseDiv.textContent = "Please provide an image or a prompt.";
         return;
       }
 
-      const reader = new FileReader();
-      reader.onload = async () => {
-        const base64Image = reader.result.split(',')[1];
+      const messages = [{ role: "user", content: [] }];
 
-        const result = await fetch("https://api.openai.com/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": "Bearer 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" // Replace this
-          },
-          body: JSON.stringify({
-            model: "gpt-4-vision-preview",
-            messages: [
-              {
-                role: "user",
-                content: [
-                  { type: "text", text: prompt },
-                  {
-                    type: "image_url",
-                    image_url: {
-                      url: `data:image/jpeg;base64,${base64Image}`
-                    }
-                  }
-                ]
-              }
-            ],
-            max_tokens: 500
-          })
-        });
+      if (prompt) {
+        messages[0].content.push({ type: "text", text: prompt });
+      } else {
+        messages[0].content.push({ type: "text", text: "Describe this image." });
+      }
 
-        const data = await result.json();
-        responseDiv.textContent = data.choices?.[0]?.message?.content || "No response.";
-      };
-      reader.readAsDataURL(file);
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = async () => {
+          const base64Image = reader.result.split(',')[1];
+          messages[0].content.push({
+            type: "image_url",
+            image_url: { url: `data:image/jpeg;base64,${base64Image}` }
+          });
+
+          await fetchOpenAI(messages, responseDiv);
+        };
+        reader.readAsDataURL(file);
+      } else {
+        // Only prompt, no image
+        await fetchOpenAI(messages, responseDiv);
+      }
+    }
+
+    async function fetchOpenAI(messages, responseDiv) {
+      responseDiv.textContent = "Waiting for response...";
+
+      const response = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer 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" // ← Replace only for local testing
+        },
+        body: JSON.stringify({
+          model: "gpt-4-vision-preview",
+          messages: messages,
+          max_tokens: 500
+        })
+      });
+
+      const data = await response.json();
+      responseDiv.textContent = data.choices?.[0]?.message?.content || "No response.";
     }
   </script>
 </body>
